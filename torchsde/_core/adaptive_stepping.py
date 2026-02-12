@@ -61,7 +61,7 @@ def compute_error(y11: TensorOrTensors, y12: TensorOrTensors, rtol, atol, eps=1e
         for y11_, y12_ in zip(y11, y12)
     ]
     error_estimate = _rms(
-        [(y11_ - y12_) / tol_ for y11_, y12_, tol_ in zip(y11, y12, tol)], eps
+        [torch.abs(y11_ - y12_) / tol_ for y11_, y12_, tol_ in zip(y11, y12, tol)], eps
     )
     assert not misc.is_nan(error_estimate), (
         'Found nans in the error estimate. Try increasing the tolerance or regularizing the dynamics.'

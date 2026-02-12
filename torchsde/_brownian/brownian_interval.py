@@ -39,8 +39,8 @@ def _is_scalar(x):
 def _assert_floating_tensor(name, tensor):
     if not torch.is_tensor(tensor):
         raise ValueError(f"{name}={tensor} should be a Tensor.")
-    if not tensor.is_floating_point():
-        raise ValueError(f"{name}={tensor} should be floating point.")
+    if not tensor.is_floating_point() and not tensor.is_complex():
+        raise ValueError(f"{name}={tensor} should be floating point or complex.")
 
 
 def _check_tensor_info(*tensors, size, dtype, device):

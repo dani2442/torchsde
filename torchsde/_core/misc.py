@@ -60,6 +60,10 @@ def seq_sub(xs, ys):
 
 
 def batch_mvp(m, v):
+    # Promote to a common dtype for mixed precision / mixed real-complex cases.
+    common_dtype = torch.result_type(m, v)
+    m = m.to(dtype=common_dtype)
+    v = v.to(dtype=common_dtype)
     return torch.bmm(m, v.unsqueeze(-1)).squeeze(dim=-1)
 
 

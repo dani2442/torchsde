@@ -19,7 +19,7 @@ import torch
 from . import base_sde
 from . import methods
 from . import misc
-from .._brownian import BaseBrownian, BrownianInterval
+from .._brownian import BaseBrownian, BrownianInterval, ComplexBrownian
 from ..settings import LEVY_AREA_APPROXIMATIONS, METHODS, NOISE_TYPES, SDE_TYPES
 from ..types import Any, Dict, Optional, Scalar, Tensor, Tensors, TensorOrTensors, Vector
 
@@ -158,10 +158,12 @@ def check_contract(sde, y0, ts, bm, method, adaptive, options, names, logqp):
     if method not in METHODS:
         raise ValueError(f"Expected method in {METHODS}, but found {method}.")
 
+    # Time values must always be real, even when y0 is complex.
+    _real_dtype = y0.real.dtype if y0.is_complex() else y0.dtype
     if not torch.is_tensor(ts):
         if not isinstance(ts, (tuple, list)) or not all(isinstance(t, (float, int)) for t in ts):
             raise ValueError("Evaluation times `ts` must be a 1-D Tensor or list/tuple of floats.")
-        ts = torch.tensor(ts, dtype=y0.dtype, device=y0.device)
+        ts = torch.tensor(ts, dtype=_real_dtype, device=y0.device)
     if not misc.is_strictly_increasing(ts):
         raise ValueError("Evaluation times `ts` must be strictly increasing.")
 
@@ -219,7 +221,7 @@ def check_contract(sde, y0, ts, bm, method, adaptive, options, names, logqp):
         if len(noise_sizes) == 0:
             raise ValueError("Cannot infer noise size (i.e. number of Brownian motion channels). Either pass `bm` "
                              "explicitly, or specify one of the `g`, `f_and_g` functions.`")
-        v = torch.randn(batch_sizes[0], noise_sizes[0], dtype=y0.dtype, device=y0.device)
+        v = torch.randn(batch_sizes[0], noise_sizes[0], dtype=_real_dtype, device=y0.device)
         g_prod_shape = tuple(sde.g_prod(ts[0], y0, v).size())
         _check_2d('Diffusion-vector product', g_prod_shape)
     if hasattr(sde, 'f_and_g_prod'):
@@ -228,7 +230,7 @@ def check_contract(sde, y0, ts, bm, method, adaptive, options, names, logqp):
         if len(noise_sizes) == 0:
             raise ValueError("Cannot infer noise size (i.e. number of Brownian motion channels). Either pass `bm` "
                              "explicitly, or specify one of the `g`, `f_and_g` functions.`")
-        v = torch.randn(batch_sizes[0], noise_sizes[0], dtype=y0.dtype, device=y0.device)
+        v = torch.randn(batch_sizes[0], noise_sizes[0], dtype=_real_dtype, device=y0.device)
         _f, _g_prod = sde.f_and_g_prod(ts[0], y0, v)
         f_drift_shape = tuple(_f.size())
         g_prod_shape = tuple(_g_prod.size())
@@ -266,8 +268,14 @@ def check_contract(sde, y0, ts, bm, method, adaptive, options, names, logqp):
             levy_area_approximation = LEVY_AREA_APPROXIMATIONS.foster
         else:
             levy_area_approximation = LEVY_AREA_APPROXIMATIONS.none
-        bm = BrownianInterval(t0=ts[0], t1=ts[-1], size=(batch_sizes[0], noise_sizes[0]), dtype=y0.dtype,
-                              device=y0.device, levy_area_approximation=levy_area_approximation)
+        _bm_size = (batch_sizes[0], noise_sizes[0])
+        if y0.is_complex():
+            # Use complex Brownian motion W = W_1 + i*W_2 for complex-valued SDEs.
+            bm = ComplexBrownian(t0=ts[0], t1=ts[-1], size=_bm_size, dtype=_real_dtype,
+                                device=y0.device, levy_area_approximation=levy_area_approximation)
+        else:
+            bm = BrownianInterval(t0=ts[0], t1=ts[-1], size=_bm_size, dtype=_real_dtype,
+                                  device=y0.device, levy_area_approximation=levy_area_approximation)
 
     if options is None:
         options = {}
