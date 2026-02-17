@@ -118,6 +118,16 @@ class _SdeintAdjointMethod(torch.autograd.Function):
                 aug_state = misc.flatten(aug_state)
                 aug_state = aug_state.unsqueeze(0)  # dummy batch dimension
 
+        # When flatten promoted real tensors to complex (e.g. real parameter
+        # gradients alongside complex state), convert them back to their
+        # original dtypes so that autograd receives correctly-typed gradients.
+        _orig_dtypes = ([ys[-1].dtype, grad_ys[-1].dtype]
+                        + [g.dtype for g in grad_extra_solver_state]
+                        + [p.dtype for p in adjoint_params])
+        for idx in range(len(aug_state)):
+            if idx < len(_orig_dtypes) and aug_state[idx].is_complex() and not _orig_dtypes[idx].is_complex:
+                aug_state[idx] = aug_state[idx].real
+
         if ctx.saved_extras_for_backward:
             out = aug_state[1:]
         else:

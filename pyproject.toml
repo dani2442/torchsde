@@ -1,5 +1,38 @@
 [build-system]
-# These are the assumed default build requirements from pip:
-# https://pip.pypa.io/en/stable/reference/pip/#pep-517-and-518-support
 requires = ["setuptools>=40.8.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "torchsde"
+version = "0.2.6"
+description = "SDE solvers and stochastic adjoint sensitivity analysis in PyTorch."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.13"
+authors = [
+    { name = "Xuechen Li", email = "lxuechen@cs.stanford.edu" },
+    { name = "Patrick Kidger", email = "hello@kidger.site" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "numpy>=1.19",
+    "scipy>=1.5",
+    "torch>=1.6.0",
+    "trampoline>=0.1.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/google-research/torchsde"
+
+[tool.setuptools.packages.find]
+exclude = ["benchmarks", "diagnostics", "examples", "tests"]
+
+[dependency-groups]
+dev = [
+    "numpy>=2.4.2",
+    "scipy>=1.17.0",
+    "torch>=2.10.0",
+    "trampoline>=0.1.2",
+]

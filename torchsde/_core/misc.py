@@ -32,7 +32,18 @@ def handle_unused_kwargs(unused_kwargs, msg=None):
 
 
 def flatten(sequence):
-    return torch.cat([p.reshape(-1) for p in sequence]) if len(sequence) > 0 else torch.tensor([])
+    if len(sequence) == 0:
+        return torch.tensor([])
+    parts = [p.reshape(-1) for p in sequence]
+    # Promote to a common dtype so that mixed real/complex sequences can be
+    # concatenated (e.g. complex state alongside real parameter gradients in
+    # the adjoint).
+    if len(parts) > 1 and len(set(p.dtype for p in parts)) > 1:
+        target_dtype = parts[0].dtype
+        for p in parts[1:]:
+            target_dtype = torch.result_type(torch.empty((), dtype=target_dtype), torch.empty((), dtype=p.dtype))
+        parts = [p.to(dtype=target_dtype) for p in parts]
+    return torch.cat(parts)
 
 
 def convert_none_to_zeros(sequence, like_sequence):

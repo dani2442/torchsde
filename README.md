@@ -1,17 +1,24 @@
 # PyTorch Implementation of Differentiable SDE Solvers ![Python package](https://github.com/google-research/torchsde/actions/workflows/run_tests.yml/badge.svg)
 This library provides [stochastic differential equation (SDE)](https://en.wikipedia.org/wiki/Stochastic_differential_equation) solvers with GPU support and efficient backpropagation.
 
+This repository is a fork of `google-research/torchsde` with extensions for complex-valued SDEs (including complex Brownian motion and adjoint support).
+
 ---
 <p align="center">
   <img width="600" height="450" src="./assets/latent_sde.gif">
 </p>
 
 ## Installation
-```shell script
-pip install torchsde
+```shell
+uv add git+https://github.com/dani2442/torchsde
 ```
 
-**Requirements:** Python >=3.8 and PyTorch >=1.6.0.
+Alternative:
+```shell
+pip install "git+https://github.com/dani2442/torchsde"
+```
+
+**Requirements:** Python >=3.13 and PyTorch >=1.6.0.
 
 ## Documentation
 Available [here](./DOCUMENTATION.md).
@@ -75,6 +82,16 @@ Training should stabilize after 500 iterations with the default hyperparameters.
 ```shell script
 python -m examples.sde_gan
 ```
+
+### Complex-valued SDE support
+[`examples/complex_sde.py`](examples/complex_sde.py) gives a minimal complex-valued example comparing gradients from `sdeint` (standard backprop) and `sdeint_adjoint`.
+
+Run it from a local clone of this repository:
+```shell
+python -m examples.complex_sde
+```
+
+More extensive complex-valued validation checks are in [`tests/test_complex_sde.py`](tests/test_complex_sde.py).
 
 ## Citation
 
