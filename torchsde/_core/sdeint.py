@@ -272,7 +272,7 @@ def check_contract(sde, y0, ts, bm, method, adaptive, options, names, logqp):
         if y0.is_complex():
             # Use complex Brownian motion W = W_1 + i*W_2 for complex-valued SDEs.
             bm = ComplexBrownian(t0=ts[0], t1=ts[-1], size=_bm_size, dtype=_real_dtype,
-                                device=y0.device, levy_area_approximation=levy_area_approximation)
+                                 device=y0.device, levy_area_approximation=levy_area_approximation)
         else:
             bm = BrownianInterval(t0=ts[0], t1=ts[-1], size=_bm_size, dtype=_real_dtype,
                                   device=y0.device, levy_area_approximation=levy_area_approximation)

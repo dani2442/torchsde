@@ -150,8 +150,8 @@ def test_against_sdeint(sde_cls, sde_type, method, options, dt, rtol, atol, len_
     ys_test.backward(grad)
     test_grad = torch.cat([y0.grad.view(-1)] + [param.grad.view(-1) for param in sde.parameters()])
 
-    torch.testing.assert_allclose(ys_true, ys_test)
-    torch.testing.assert_allclose(true_grad, test_grad, rtol=rtol, atol=atol)
+    torch.testing.assert_close(ys_true, ys_test, rtol=1e-5, atol=1e-8)
+    torch.testing.assert_close(true_grad, test_grad, rtol=rtol, atol=atol)
 
 
 @pytest.mark.parametrize("problem", [problems.BasicSDE1, problems.BasicSDE2, problems.BasicSDE3, problems.BasicSDE4])

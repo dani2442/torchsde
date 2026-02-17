@@ -20,6 +20,24 @@ pip install "git+https://github.com/dani2442/torchsde"
 
 **Requirements:** Python >=3.13 and PyTorch >=1.6.0.
 
+## Development
+For local development, use Python 3.13+ and sync the dev dependency group:
+
+```shell
+uv sync --group dev
+```
+
+Common local checks:
+
+```shell
+uv run flake8 torchsde tests examples benchmarks diagnostics
+uv run pytest -q tests/test_complex_sde.py
+uv run pytest -q tests/test_adjoint.py::test_against_sdeint
+uv run pytest -q tests/test_brownian_interval.py tests/test_brownian_path.py tests/test_brownian_tree.py
+uv run pytest -q tests/test_sdeint.py::test_rename_methods tests/test_sdeint.py::test_rename_methods_logqp tests/test_sdeint.py::test_specialised_functions tests/test_sdeint.py::test_reversibility
+uv run python -m examples.complex_sde
+```
+
 ## Documentation
 Available [here](./DOCUMENTATION.md).
 

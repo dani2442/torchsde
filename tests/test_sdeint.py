@@ -249,4 +249,4 @@ def test_reversibility(sde_cls):
                                   method='reversible_heun', dt=dt, extra_solver_state=(-f, -g, z))
     backward_ys = backward_ys.flip(0)
 
-    torch.testing.assert_allclose(ys, backward_ys, rtol=1e-6, atol=1e-6)
+    torch.testing.assert_close(ys, backward_ys, rtol=1e-6, atol=1e-6)

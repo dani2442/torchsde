@@ -281,9 +281,9 @@ def test_consistency(device, levy_area_approximation):
                 W1, U1 = bm(ta, t_, return_U=True)
                 W2, U2 = bm(t_, tb, return_U=True)
 
-            torch.testing.assert_allclose(W1 + W2, W, rtol=1e-6, atol=1e-6)
+            torch.testing.assert_close(W1 + W2, W, rtol=1e-6, atol=1e-6)
             if levy_area_approximation != 'none':
-                torch.testing.assert_allclose(U1 + U2 + (tb - t_) * W1, U, rtol=1e-6, atol=1e-6)
+                torch.testing.assert_close(U1 + U2 + (tb - t_) * W1, U, rtol=1e-6, atol=1e-6)
 
             # We don't test the return_A case because we don't expect that to be consistent.
 

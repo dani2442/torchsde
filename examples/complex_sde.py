@@ -46,22 +46,19 @@ def _compute_grads(use_adjoint, y0, ts, dt, entropy):
         t0=ts[0], t1=ts[-1], size=y0.shape, dtype=torch.float64, entropy=entropy
     )
 
+    solve_fn = torchsde.sdeint_adjoint if use_adjoint else torchsde.sdeint
+    solve_kwargs = dict(sde=sde, y0=y0, ts=ts, dt=dt, method="euler", bm=bm)
     if use_adjoint:
-        ys = torchsde.sdeint_adjoint(
-            sde,
-            y0,
-            ts,
-            dt=dt,
-            method="euler",
-            adjoint_method="euler",
-            bm=bm,
-        )
-    else:
-        ys = torchsde.sdeint(sde, y0, ts, dt=dt, method="euler", bm=bm)
+        solve_kwargs["adjoint_method"] = "euler"
+    ys = solve_fn(**solve_kwargs)
 
     loss = ys[-1].abs().pow(2).mean()
     loss.backward()
     return sde.alpha.grad.detach(), sde.sigma.grad.detach(), loss.item()
+
+
+def _relative_error(reference, test):
+    return (reference - test).abs().max() / reference.abs().max().clamp(min=1e-12)
 
 
 def main():
@@ -83,8 +80,8 @@ def main():
         use_adjoint=True, y0=y0, ts=ts, dt=dt, entropy=123
     )
 
-    alpha_rel_err = (grad_alpha_bp - grad_alpha_adj).abs().max() / grad_alpha_bp.abs().max()
-    sigma_rel_err = (grad_sigma_bp - grad_sigma_adj).abs().max() / grad_sigma_bp.abs().max()
+    alpha_rel_err = _relative_error(grad_alpha_bp, grad_alpha_adj)
+    sigma_rel_err = _relative_error(grad_sigma_bp, grad_sigma_adj)
 
     print("Loss (backprop): ", f"{loss_bp:.8f}")
     print("Loss (adjoint):  ", f"{loss_adj:.8f}")

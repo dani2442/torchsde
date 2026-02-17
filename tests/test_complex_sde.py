@@ -113,34 +113,59 @@ def _setup_problem():
     dt = (t1 - t0) / n_steps
     ts = torch.linspace(t0, t1, n_steps + 1, dtype=torch.float64, device=device)
     y0 = torch.full((batch_size, d), 1.0 + 0.5j, dtype=torch.complex128, device=device)
-    return d, batch_size, dt, ts, y0
+    return dt, ts, y0
+
+
+def _copy_parameters(src, dst):
+    with torch.no_grad():
+        for (src_name, src_param), (dst_name, dst_param) in zip(src.named_parameters(), dst.named_parameters()):
+            assert src_name == dst_name
+            dst_param.copy_(src_param.detach())
+
+
+def _run_solver(sde, y0, ts, dt, method, entropy, use_adjoint=False, noise_size=None, adjoint_method=None):
+    if noise_size is None:
+        noise_size = y0.shape[1]
+    bm = torchsde.ComplexBrownian(
+        t0=ts[0], t1=ts[-1], size=(y0.shape[0], noise_size), dtype=torch.float64, device=device, entropy=entropy
+    )
+    if use_adjoint:
+        return torchsde.sdeint_adjoint(
+            sde, y0, ts, dt=dt, method=method, adjoint_method=adjoint_method or method, bm=bm
+        )
+    return torchsde.sdeint(sde, y0, ts, dt=dt, method=method, bm=bm)
+
+
+def _terminal_loss(ys):
+    loss = ys[-1].abs().pow(2).sum()
+    loss.backward()
+    return loss
+
+
+def _collect_grads(module):
+    return {name: param.grad.detach().clone() for name, param in module.named_parameters()}
+
+
+def _relative_error(reference, test, min_denominator=1e-8):
+    scale = reference.abs().max().clamp(min=min_denominator)
+    return (reference - test).abs().max() / scale
 
 
 def test_complex_adjoint_matches_backprop_complex_params():
-    _, batch_size, dt, ts, y0 = _setup_problem()
+    dt, ts, y0 = _setup_problem()
 
     sde_bp = _ComplexOULearnable()
-    bm_bp = torchsde.ComplexBrownian(
-        t0=ts[0], t1=ts[-1], size=(batch_size, 2), dtype=torch.float64, device=device, entropy=42
-    )
-    ys_bp = torchsde.sdeint(sde_bp, y0, ts, dt=dt, method="euler", bm=bm_bp)
-    loss_bp = ys_bp[-1].abs().pow(2).sum()
-    loss_bp.backward()
+    ys_bp = _run_solver(sde_bp, y0, ts, dt, method="euler", entropy=42)
+    loss_bp = _terminal_loss(ys_bp)
     grad_alpha_bp = sde_bp.alpha.grad.detach().clone()
     grad_sigma_bp = sde_bp.sigma.grad.detach().clone()
 
     sde_adj = _ComplexOULearnable()
-    with torch.no_grad():
-        sde_adj.alpha.copy_(sde_bp.alpha.detach())
-        sde_adj.sigma.copy_(sde_bp.sigma.detach())
-    bm_adj = torchsde.ComplexBrownian(
-        t0=ts[0], t1=ts[-1], size=(batch_size, 2), dtype=torch.float64, device=device, entropy=42
+    _copy_parameters(sde_bp, sde_adj)
+    ys_adj = _run_solver(
+        sde_adj, y0, ts, dt, method="euler", entropy=42, use_adjoint=True, adjoint_method="euler"
     )
-    ys_adj = torchsde.sdeint_adjoint(
-        sde_adj, y0, ts, dt=dt, method="euler", adjoint_method="euler", bm=bm_adj
-    )
-    loss_adj = ys_adj[-1].abs().pow(2).sum()
-    loss_adj.backward()
+    loss_adj = _terminal_loss(ys_adj)
     grad_alpha_adj = sde_adj.alpha.grad.detach().clone()
     grad_sigma_adj = sde_adj.sigma.grad.detach().clone()
 
@@ -153,82 +178,56 @@ def test_complex_adjoint_matches_backprop_complex_params():
     assert grad_alpha_adj.abs().sum() > 0
     assert grad_sigma_adj.abs().sum() > 0
 
-    alpha_rel = (grad_alpha_bp - grad_alpha_adj).abs().max() / grad_alpha_bp.abs().max()
-    sigma_rel = (grad_sigma_bp - grad_sigma_adj).abs().max() / grad_sigma_bp.abs().max()
-    assert alpha_rel.item() < 0.03
-    assert sigma_rel.item() < 0.03
+    assert _relative_error(grad_alpha_bp, grad_alpha_adj, min_denominator=1e-12).item() < 0.03
+    assert _relative_error(grad_sigma_bp, grad_sigma_adj, min_denominator=1e-12).item() < 0.03
 
 
 def test_complex_adjoint_matches_backprop_real_params():
-    _, batch_size, dt, ts, y0 = _setup_problem()
+    dt, ts, y0 = _setup_problem()
 
     sde_bp = _ComplexOURealParams()
-    bm_bp = torchsde.ComplexBrownian(
-        t0=ts[0], t1=ts[-1], size=(batch_size, 2), dtype=torch.float64, device=device, entropy=99
-    )
-    ys_bp = torchsde.sdeint(sde_bp, y0, ts, dt=dt, method="euler", bm=bm_bp)
-    loss_bp = ys_bp[-1].abs().pow(2).sum()
-    loss_bp.backward()
-    grads_bp = {n: p.grad.detach().clone() for n, p in sde_bp.named_parameters()}
+    ys_bp = _run_solver(sde_bp, y0, ts, dt, method="euler", entropy=99)
+    loss_bp = _terminal_loss(ys_bp)
+    grads_bp = _collect_grads(sde_bp)
 
     sde_adj = _ComplexOURealParams()
-    with torch.no_grad():
-        for (n1, p1), (n2, p2) in zip(sde_bp.named_parameters(), sde_adj.named_parameters()):
-            assert n1 == n2
-            p2.copy_(p1.detach())
-    bm_adj = torchsde.ComplexBrownian(
-        t0=ts[0], t1=ts[-1], size=(batch_size, 2), dtype=torch.float64, device=device, entropy=99
+    _copy_parameters(sde_bp, sde_adj)
+    ys_adj = _run_solver(
+        sde_adj, y0, ts, dt, method="euler", entropy=99, use_adjoint=True, adjoint_method="euler"
     )
-    ys_adj = torchsde.sdeint_adjoint(
-        sde_adj, y0, ts, dt=dt, method="euler", adjoint_method="euler", bm=bm_adj
-    )
-    loss_adj = ys_adj[-1].abs().pow(2).sum()
-    loss_adj.backward()
-    grads_adj = {n: p.grad.detach().clone() for n, p in sde_adj.named_parameters()}
+    loss_adj = _terminal_loss(ys_adj)
+    grads_adj = _collect_grads(sde_adj)
 
     torch.testing.assert_close(ys_bp, ys_adj, rtol=1e-10, atol=1e-10)
     torch.testing.assert_close(loss_bp, loss_adj, rtol=1e-10, atol=1e-10)
 
-    for name in grads_bp:
-        g_bp = grads_bp[name]
-        g_adj = grads_adj[name]
-        assert g_adj.dtype == g_bp.dtype
-        assert not g_adj.is_complex()
-        assert torch.isfinite(g_adj).all()
-        rel = (g_bp - g_adj).abs().max() / g_bp.abs().max().clamp(min=1e-8)
-        assert rel.item() < 0.05
+    for name, grad_bp in grads_bp.items():
+        grad_adj = grads_adj[name]
+        assert grad_adj.dtype == grad_bp.dtype
+        assert not grad_adj.is_complex()
+        assert torch.isfinite(grad_adj).all()
+        assert _relative_error(grad_bp, grad_adj).item() < 0.05
 
 
 def test_complex_adjoint_stratonovich_midpoint():
-    _, batch_size, dt, ts, y0 = _setup_problem()
+    dt, ts, y0 = _setup_problem()
 
     sde_bp = _ComplexOUStratLearnable()
-    bm_bp = torchsde.ComplexBrownian(
-        t0=ts[0], t1=ts[-1], size=(batch_size, 2), dtype=torch.float64, device=device, entropy=77
-    )
-    ys_bp = torchsde.sdeint(sde_bp, y0, ts, dt=dt, method="midpoint", bm=bm_bp)
-    loss_bp = ys_bp[-1].abs().pow(2).sum()
-    loss_bp.backward()
+    ys_bp = _run_solver(sde_bp, y0, ts, dt, method="midpoint", entropy=77)
+    loss_bp = _terminal_loss(ys_bp)
     grad_alpha_bp = sde_bp.alpha.grad.detach().clone()
 
     sde_adj = _ComplexOUStratLearnable()
-    with torch.no_grad():
-        sde_adj.alpha.copy_(sde_bp.alpha.detach())
-        sde_adj.sigma.copy_(sde_bp.sigma.detach())
-    bm_adj = torchsde.ComplexBrownian(
-        t0=ts[0], t1=ts[-1], size=(batch_size, 2), dtype=torch.float64, device=device, entropy=77
+    _copy_parameters(sde_bp, sde_adj)
+    ys_adj = _run_solver(
+        sde_adj, y0, ts, dt, method="midpoint", entropy=77, use_adjoint=True, adjoint_method="midpoint"
     )
-    ys_adj = torchsde.sdeint_adjoint(
-        sde_adj, y0, ts, dt=dt, method="midpoint", adjoint_method="midpoint", bm=bm_adj
-    )
-    loss_adj = ys_adj[-1].abs().pow(2).sum()
-    loss_adj.backward()
+    loss_adj = _terminal_loss(ys_adj)
     grad_alpha_adj = sde_adj.alpha.grad.detach().clone()
 
     torch.testing.assert_close(ys_bp, ys_adj, rtol=1e-10, atol=1e-10)
     torch.testing.assert_close(loss_bp, loss_adj, rtol=1e-10, atol=1e-10)
-    rel = (grad_alpha_bp - grad_alpha_adj).abs().max() / grad_alpha_bp.abs().max()
-    assert rel.item() < 0.03
+    assert _relative_error(grad_alpha_bp, grad_alpha_adj, min_denominator=1e-12).item() < 0.03
 
 
 def test_complex_general_noise_output_dtype():

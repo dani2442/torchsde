@@ -26,7 +26,7 @@ def assert_allclose(actual, expected, rtol=1e-3, atol=1e-2):
     if actual is None:
         assert expected is None
     else:
-        torch.testing.assert_allclose(actual, expected, rtol=rtol, atol=atol)
+        torch.testing.assert_close(actual, expected, rtol=rtol, atol=atol)
 
 
 def gradcheck(func: Callable,
@@ -118,7 +118,7 @@ def gradcheck(func: Callable,
                 numerical_grad.append((plus_eps - minus_eps) / (2 * eps))
                 del plus_eps, minus_eps
         numerical_grad = torch.stack(numerical_grad)
-        torch.testing.assert_allclose(numerical_grad, framework_grad, rtol=rtol, atol=atol)
+        torch.testing.assert_close(numerical_grad, framework_grad, rtol=rtol, atol=atol)
 
     # Grad of grad wrt params.
     if gradgrad_params:
