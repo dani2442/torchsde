@@ -13,3 +13,4 @@ CMakeLists.txt
 restats
 *-darwin.so
 **.pyc
+uv.lock
