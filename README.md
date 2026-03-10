@@ -18,7 +18,7 @@ Alternative:
 pip install "git+https://github.com/dani2442/torchsde"
 ```
 
-**Requirements:** Python >=3.13 and PyTorch >=1.6.0.
+**Requirements:** Python >=3.8 and PyTorch >=1.6.0.
 
 ## Development
 For local development, use Python 3.13+ and sync the dev dependency group:
@@ -100,16 +100,6 @@ Training should stabilize after 500 iterations with the default hyperparameters.
 ```shell script
 python -m examples.sde_gan
 ```
-
-### Complex-valued SDE support
-[`examples/complex_sde.py`](examples/complex_sde.py) gives a minimal complex-valued example comparing gradients from `sdeint` (standard backprop) and `sdeint_adjoint`.
-
-Run it from a local clone of this repository:
-```shell
-python -m examples.complex_sde
-```
-
-More extensive complex-valued validation checks are in [`tests/test_complex_sde.py`](tests/test_complex_sde.py).
 
 ## Citation
 
